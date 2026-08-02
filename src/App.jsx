@@ -319,7 +319,7 @@ const callPOSearchAPI = async (poNumber, pageNum = 1, reset = false) => {
     if (requestId !== fetchRequestIdRef.current) return;
 
     const rawItems = Array.isArray(data) ? data : (data.Items ?? []);
-    const more = rawItems.length >= PAGE_SIZE;
+    const more = Array.isArray(data) ? rawItems.length >= PAGE_SIZE : (data.HasMore ?? rawItems.length >= PAGE_SIZE);
 
     let mapped = rawItems.map(mapItem);
 
