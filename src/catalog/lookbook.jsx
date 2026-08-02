@@ -31,13 +31,16 @@ const normaliseList = (data) => {
 };
 
 // ─── LBImage ─────────────────────────────────────────────────────────────────
-function LBImage({ imageUrl, itemId, rsp, lastInRate, sellThru, t, 
+function LBImage({ imageUrl, itemId, rsp, lastInRate, sellThru, t,
   onClick, onViewItems,colorConcept, imgFolder }) {
-  const [index, setIndex] = useState(0);
+  // Images are only ever stored on the server with a numbered suffix (_1, _2, ...) —
+  // the bare filename in imageUrl is a DB key, not an actual file, so start probing at 1.
+  const [index, setIndex] = useState(1);
 
   const basePath = imageUrl
     ?.replace(/^\/?(itemimages|itemimagesGM)\//, "")
     ?.replace(/_\d+\.jpg$/i, "")
+    ?.replace(/\.\w+$/, "")
     || "";
 
   const src = imageUrl
@@ -461,8 +464,8 @@ export default function LookBook({ themeKey = "dark", onClose }) {
   const openGallery = (itemId, basePath) => {
     const folder = IMG_FOLDER[appsgmsRef.current] ?? "itemimages";
     const images = Array.from(
-      { length: 6 },
-      (_, i) => `${IMAGE_BASE}/${folder}/${basePath}_${i}.jpg`
+      { length: 5 },
+      (_, i) => `${IMAGE_BASE}/${folder}/${basePath}_${i + 1}.jpg`
     );
     setGallery({ itemId, images });
   };
