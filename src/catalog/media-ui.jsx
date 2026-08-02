@@ -520,7 +520,7 @@ export function Carousel({ item, height, fit="cover", showThumbs=false, showDots
     if (!url) return null;
     const path = url.startsWith(IMAGE_BASE) ? url.slice(IMAGE_BASE.length) : url;
     if (!path||path==="/itemimages/.jpg") return null;
-    return path.split("/").pop().replace(/_\d+\.\w+$/,"") || null;
+    return path.split("/").pop().replace(/_\d+\.\w+$/,"").replace(/\.\w+$/,"") || null;
   };
 
   const folder = item.imageUrl?.toLowerCase().includes("itemimagesgm")
@@ -530,13 +530,12 @@ export function Carousel({ item, height, fit="cover", showThumbs=false, showDots
   const base = getBase(item.imageUrl);
   const path = item.imageUrl?.startsWith(IMAGE_BASE) ? item.imageUrl.slice(IMAGE_BASE.length) : (item.imageUrl||"");
   const ext = path.split(".").pop()||"jpg";
-  
-  //const candidates = base ? Array.from({length:5},(_,i)=>`${IMAGE_BASE}/${folder}/${base}_${i+1}.${ext}`) : [];
 
-  const candidates = base ? [
-  `${IMAGE_BASE}/${folder}/${base}_0.${ext}`,
-  ...Array.from({length:5},(_,i)=>`${IMAGE_BASE}/${folder}/${base}_${i+1}.${ext}`)
-] : [];
+  // Images are only ever stored on the server with a numbered suffix (_1, _2, ...) —
+  // the bare filename in item.imageUrl is a DB key, not an actual file, so don't probe it.
+  const candidates = base
+    ? Array.from({length:5},(_,i)=>`${IMAGE_BASE}/${folder}/${base}_${i+1}.${ext}`)
+    : [];
   
   const [loaded, setLoaded] = useState({});
   const [current, setCurrent] = useState(0);
@@ -571,13 +570,9 @@ export function Carousel({ item, height, fit="cover", showThumbs=false, showDots
 
   return (
     <div style={{position:"relative",height,overflow:"hidden",background:"rgba(0,0,0,0.15)",userSelect:"none"}} onMouseEnter={()=>setHov(true)} onMouseLeave={()=>setHov(false)} onTouchStart={e=>{touchX.current=e.touches[0].clientX;}} onTouchEnd={e=>{if(touchX.current!==null){const d=touchX.current-e.changedTouches[0].clientX;if(Math.abs(d)>30) go(d>0?1:-1);touchX.current=null;}}}>
-      {/* {candidates.map((src,i)=> loaded[i]===false ? null : 
-      <div key={i} style={{position:"absolute",inset:0,opacity:i===current?1:0,transition:"opacity 0.3s ease",transform:i===current&&hov&&fit==="cover"?"scale(1.06)":"scale(1)",transitionProperty:"opacity,transform",transitionDuration:"0.3s",pointerEvents:i===current?"auto":"none"}}>
-        <img src={src} loading="lazy" decoding="async" style={{width:"100%",height:"100%",objectFit:fit,display:"block"}} onLoad={()=>markLoaded(i)} onError={()=>{markFailed(i);if(i===current){const n=slides.find(s=>s>i);if(n!==undefined)setCurrent(n);}}}/>
-        </div>
-        )} */}
-
-        {candidates.map((src,i)=> loaded[i]===false ? null : 
+        {/* Only mount confirmed-loaded slides plus the single next candidate to probe —
+            mounting all 6 candidates at once fires 6 parallel requests per item, most 404s. */}
+        {candidates.map((src,i)=> !slides.includes(i) ? null :
   <div key={i} style={{
     position:"absolute",
     inset:0,
