@@ -403,7 +403,7 @@ const callPOSearchAPI = async (poNumber, pageNum = 1, reset = false) => {
           return; 
         } 
 
-  fetch(`${API_BASE}/GetDivision?divisiontype=${appsgms.join(",")}`)
+  fetch(`${API_BASE}/GetDivision?divisiontype=${encodeURIComponent(appsgms.join(","))}`)
     .then((response) => response.json())
     .then((data) => setDivisionList(normaliseCatList(data))) // ✅ correct
     .catch(console.error); 
@@ -631,10 +631,10 @@ const applyListToState = (tab, list) => {
     try {
       const itemInfoEndpoint = bobsArticle ? "GetBOBSItemBasicInfo" : "GetItemBasicInfo";
       const url = `${API_BASE}/${itemInfoEndpoint}`
-        + `?brand=${brands.join(",")}&maxPrice=99999&division=${divisions.join(",")}&section=${sections.join(",")}&department=${departments.join(",")}`
+        + `?brand=${encodeURIComponent(brands.join(","))}&maxPrice=99999&division=${encodeURIComponent(divisions.join(","))}&section=${encodeURIComponent(sections.join(","))}&department=${encodeURIComponent(departments.join(","))}`
         + `&pageNumber=${pageNum}&pageSize=${PAGE_SIZE}&selectedfilter=${debouncedGlobalSearch ? "cat1" : "select"}`
-        + `&selectedfiltervalue=${encodeURIComponent(debouncedGlobalSearch)}&season=${seasons.join(",")}`
-        + `&MRPsortType=${mrpSort === "None" ? "ASC" : mrpSort}&SalesortType=${saleSort === "None" ? "ASC" : saleSort}&appstype=${appsgms.join(",")}`
+        + `&selectedfiltervalue=${encodeURIComponent(debouncedGlobalSearch)}&season=${encodeURIComponent(seasons.join(","))}`
+        + `&MRPsortType=${mrpSort === "None" ? "ASC" : mrpSort}&SalesortType=${saleSort === "None" ? "ASC" : saleSort}&appstype=${encodeURIComponent(appsgms.join(","))}`
         + `&cat2=${encodeURIComponent(cat2.join(","))}&cat3=${encodeURIComponent(cat3.join(","))}&cat4=${encodeURIComponent(cat4.join(","))}&cat5=${encodeURIComponent(cat5.join(","))}&cat6=${encodeURIComponent(cat6.join(","))}`
         + `&desc1=${encodeURIComponent(desc1.join(","))}&desc2=${encodeURIComponent(desc2.join(","))}&desc3=${encodeURIComponent(desc3.join(","))}&desc4=${encodeURIComponent(desc4.join(","))}&desc5=${encodeURIComponent(desc5.join(","))}&desc6=${encodeURIComponent(desc6.join(","))}`
         + `&articlename=${encodeURIComponent(debouncedArticleSearch)}&rspfrom=${mrpMin || 0}&rspto=${mrpMax || 99999}`
