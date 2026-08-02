@@ -306,44 +306,20 @@ const callPOSearchAPI = async (poNumber, pageNum = 1, reset = false) => {
   if (reset) setMetricsMap({});
 
   try {
-    // ── Step 1: fetch barcodes from PO ──────────────────────────────
-    const poRes = await fetch(
-      `${API_BASE}/GetItemsByPO?poNumber=${encodeURIComponent(poNumber)}&pageNumber=${pageNum}&pageSize=${PAGE_SIZE}`,
+    // GetItemsByPO returns full item details (RSP, division/section/department,
+    // categories, image URL) for the PO in a single call — no second lookup needed.
+    const res = await fetch(
+      `${API_BASE}/GetItemsByPO?poNumber=${encodeURIComponent(poNumber)}&pageNumber=${pageNum}&pageSize=${PAGE_SIZE}&appstype=${encodeURIComponent(appsgms.join(","))}`,
       { signal: controller.signal }
     );
-    if (!poRes.ok) throw new Error(`PO API error ${poRes.status}`);
+    if (!res.ok) throw new Error(`PO API error ${res.status}`);
 
-    const poData = await poRes.json();
-
-    // Normalise — backend may return string[] or [{itemCode:...}] or {Items:[...]}
-    const rawCodes = Array.isArray(poData)
-      ? poData
-      : (poData.Items ?? poData.items ?? poData.Barcodes ?? poData.barcodes ?? []);
-
-    const barcodes = rawCodes
-      .map(entry => (typeof entry === "string" ? entry : (entry.itemCode || entry.ItemCode || entry.barcode || entry.Barcode || "")))
-      .filter(Boolean);
-
-    if (barcodes.length === 0) {
-      setItems(reset ? [] : prev => prev);
-      setHasMore(false);
-      setPage(pageNum);
-      return;
-    }
-
-    const more = barcodes.length >= PAGE_SIZE;
-
-    // ── Step 2: fetch full item details for those barcodes ──────────
-    const detailRes = await fetch(
-  `${API_BASE}/GetItemsByPO?poNumber=${encodeURIComponent(poSearchInput)}&appstype=${encodeURIComponent(appsgms.join(","))}`,
-  { signal: controller.signal }
-);
-    if (!detailRes.ok) throw new Error(`Detail API error ${detailRes.status}`);
-
-    const detailData = await detailRes.json();
-    const rawItems = Array.isArray(detailData) ? detailData : (detailData.Items ?? []);
+    const data = await res.json();
 
     if (requestId !== fetchRequestIdRef.current) return;
+
+    const rawItems = Array.isArray(data) ? data : (data.Items ?? []);
+    const more = rawItems.length >= PAGE_SIZE;
 
     let mapped = rawItems.map(mapItem);
 
