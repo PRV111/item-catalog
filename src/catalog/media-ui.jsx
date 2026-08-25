@@ -537,10 +537,14 @@ export function Carousel({ item, height, fit="cover", showThumbs=false, showDots
   const path = item.imageUrl?.startsWith(IMAGE_BASE) ? item.imageUrl.slice(IMAGE_BASE.length) : (item.imageUrl||"");
   const ext = path.split(".").pop()||"jpg";
 
-  // Images are only ever stored on the server with a numbered suffix (_1, _2, ...) —
-  // the bare filename in item.imageUrl is a DB key, not an actual file, so don't probe it.
+  // Images may be stored on the server either with a numbered suffix (_1, _2, ...)
+  // or as the bare filename — probe _1 through _5, then fall back to the bare name,
+  // same convention as LBImage in lookbook.jsx.
   const candidates = base
-    ? Array.from({length:5},(_,i)=>`${IMAGE_BASE}/${folder}/${base}_${i+1}.${ext}`)
+    ? [
+        ...Array.from({length:5},(_,i)=>`${IMAGE_BASE}/${folder}/${base}_${i+1}.${ext}`),
+        `${IMAGE_BASE}/${folder}/${base}.${ext}`,
+      ]
     : [];
   
   const [loaded, setLoaded] = useState({});
