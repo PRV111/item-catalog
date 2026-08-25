@@ -63,10 +63,10 @@ const normaliseList = (data) => {
 function LBImage({ imageUrl, itemId, rsp, lastInRate, sellThru, orderRate, lookPendingQty, pendingPO, t,
   onClick, onViewItems,colorConcept, ordNo, tableFlag, imgFolder }) {
   // Images may be stored on the server either with a numbered suffix (_1, _2, ...)
-  // or as the bare filename — probe _1 through _5, then fall back to the bare name.
+  // or as the bare filename — probe _1 through _8, then fall back to the bare name.
   // PO-pending items are uploaded under a "_PO" suffix instead (barcode_PO.jpg,
   // barcode_PO_1.jpg, ...) since GRC and PO images for the same barcode can differ.
-  const [index, setIndex] = useState(1); // 1..5 = numbered, 0 = bare filename, -1 = give up
+  const [index, setIndex] = useState(1); // 1..8 = numbered, 0 = bare filename, -1 = give up
 
   const basePath = imageUrl
     ?.replace(/^\/?(itemimages|itemimagesGM)\//, "")
@@ -110,8 +110,8 @@ function LBImage({ imageUrl, itemId, rsp, lastInRate, sellThru, orderRate, lookP
           src={src}
           onError={() => {
             setIndex(i => {
-              if (i >= 1 && i < 5) return i + 1;
-              if (i === 5) return 0;
+              if (i >= 1 && i < 8) return i + 1;
+              if (i === 8) return 0;
               return -1;
             });
           }}
@@ -717,7 +717,7 @@ export default function LookBook({ themeKey = "dark", onClose }) {
     const folder = IMG_FOLDER[appsgmsRef.current] ?? "itemimages";
     const suffix = pendingPO ? "_PO" : "";
     const images = [
-      ...Array.from({ length: 5 }, (_, i) => `${IMAGE_BASE}/${folder}/${basePath}${suffix}_${i + 1}.jpg`),
+      ...Array.from({ length: 8 }, (_, i) => `${IMAGE_BASE}/${folder}/${basePath}${suffix}_${i + 1}.jpg`),
       `${IMAGE_BASE}/${folder}/${basePath}${suffix}.jpg`, // fallback for images stored without a numbered suffix
     ];
     setGallery({ itemId, images });
