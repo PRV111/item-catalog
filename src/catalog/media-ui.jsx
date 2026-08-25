@@ -512,7 +512,13 @@ const NO_IMAGE = `${IMAGE_BASE}/itemimages/NoImage.jpg`;
 
 
 
-export function Carousel({ item, height, fit="cover", showThumbs=false, showDots=true, showArrows=true, showCounter=true, showExpand=false, onExpand, zoomEnabled = true, t }) {
+export function Carousel({ item, height, fit="cover", showThumbs=false, showDots=true, showArrows=true, showCounter=true, showExpand=false, onExpand, zoomEnabled = true, tableBadge, t }) {
+  // INVITEM_UDFSTRING06 holds "TABLE" or "NON_TABLE" — condensed to a T/NT badge, same
+  // convention as the Lookbook page. Opt-in via tableBadge so unrelated Carousel call
+  // sites (e.g. ImageModal) are unaffected unless they explicitly pass it.
+  const tableBadgeLabel = tableBadge == null
+    ? null
+    : String(tableBadge).trim().toUpperCase().includes("NON") ? "NT" : "T";
  
    
  
@@ -565,7 +571,7 @@ export function Carousel({ item, height, fit="cover", showThumbs=false, showDots
   const go = (dir) => { const n=currentSlide+dir; if(n>=0&&n<slides.length) setCurrent(slides[n]); };
 
   if (!base||allFailed) {
-    return <div style={{height,position:"relative",overflow:"hidden",background:"rgba(0,0,0,0.15)"}}><img src={NO_IMAGE} alt="No Image" style={{width:"100%",height:"100%",objectFit:"contain",display:"block",opacity:0.5}} onError={e=>{e.currentTarget.style.display="none";e.currentTarget.nextSibling.style.display="flex";}}/><div style={{display:"none",position:"absolute",inset:0,alignItems:"center",justifyContent:"center"}}><FabricSwatch color={item.color||"#888"} size={64}/></div></div>;
+    return <div style={{height,position:"relative",overflow:"hidden",background:"rgba(0,0,0,0.15)"}}><img src={NO_IMAGE} alt="No Image" style={{width:"100%",height:"100%",objectFit:"contain",display:"block",opacity:0.5}} onError={e=>{e.currentTarget.style.display="none";e.currentTarget.nextSibling.style.display="flex";}}/><div style={{display:"none",position:"absolute",inset:0,alignItems:"center",justifyContent:"center"}}><FabricSwatch color={item.color||"#888"} size={64}/></div>{tableBadgeLabel&&<div style={{position:"absolute",bottom:8,left:8,background:"rgba(0,0,0,0.65)",padding:"2px 9px",borderRadius:20,fontSize:9,color:"#fff",fontWeight:700,zIndex:4,pointerEvents:"none"}}>{tableBadgeLabel}</div>}</div>;
   }
 
   return (
@@ -590,6 +596,7 @@ export function Carousel({ item, height, fit="cover", showThumbs=false, showDots
 
       {showArrows&&slides.length>1&&[[-1,"left","‹"],[1,"right","›"]].map(([dir,side,sym])=><button key={side} onClick={e=>{e.stopPropagation();go(dir);}} style={{position:"absolute",[side]:8,top:"50%",transform:"translateY(-50%)",width:28,height:28,borderRadius:"50%",background:"rgba(0,0,0,0.6)",border:"1px solid rgba(255,255,255,0.2)",color:"#fff",fontSize:14,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",opacity:hov&&(dir===-1?currentSlide>0:currentSlide<slides.length-1)?1:0,transition:"opacity 0.2s",zIndex:4,pointerEvents:hov?"auto":"none"}}>{sym}</button>)}
       {showCounter&&slides.length>1&&<div style={{position:"absolute",top:8,left:8,background:"rgba(0,0,0,0.65)",padding:"2px 9px",borderRadius:20,fontSize:9,color:"#fff",fontWeight:700,zIndex:4,pointerEvents:"none"}}>{currentSlide+1}/{slides.length}</div>}
+      {tableBadgeLabel&&<div style={{position:"absolute",bottom:8,left:8,background:"rgba(0,0,0,0.65)",padding:"2px 9px",borderRadius:20,fontSize:9,color:"#fff",fontWeight:700,zIndex:4,pointerEvents:"none"}}>{tableBadgeLabel}</div>}
       {showDots&&slides.length>1&&<div style={{position:"absolute",bottom:8,left:"50%",transform:"translateX(-50%)",display:"flex",gap:4,zIndex:4}}>{slides.map((slideIdx,i)=><div key={slideIdx} onClick={e=>{e.stopPropagation();setCurrent(slideIdx);}} style={{width:i===currentSlide?16:6,height:6,borderRadius:3,background:i===currentSlide?"#fff":"rgba(255,255,255,0.4)",transition:"all 0.25s",cursor:"pointer"}}/>)}</div>}
       {showExpand&&onExpand&&<div onClick={e=>{e.stopPropagation();onExpand();}} style={{position:"absolute",top:8,right:8,background:"rgba(0,0,0,0.55)",padding:"3px 8px",borderRadius:6,fontSize:9,color:"rgba(255,255,255,0.85)",cursor:"pointer",zIndex:4,border:"1px solid rgba(255,255,255,0.1)",opacity:hov?1:0,transition:"opacity 0.2s"}}>⤢ expand</div>}
       {showThumbs&&slides.length>1&&<div style={{position:"absolute",bottom:0,left:0,right:0,background:"rgba(0,0,0,0.75)",padding:"8px 10px",display:"flex",gap:6,overflowX:"auto",zIndex:4}} onClick={e=>e.stopPropagation()}>{slides.map((slideIdx,i)=><div key={slideIdx} onClick={()=>setCurrent(slideIdx)} style={{width:48,height:48,borderRadius:7,overflow:"hidden",flexShrink:0,cursor:"pointer",transition:"border 0.2s",opacity:i===currentSlide?1:0.55,border:`2px solid ${i===currentSlide?t.accent:"rgba(255,255,255,0.15)"}`}}><img src={candidates[slideIdx]} style={{width:"100%",height:"100%",objectFit:"cover"}} onError={e=>{e.currentTarget.src=NO_IMAGE;}}/></div>)}</div>}

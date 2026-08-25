@@ -128,6 +128,7 @@ export default function App() {
   // used for lookbook colorconcept
   const params = new URLSearchParams(window.location.search);
   const colorConceptFromURL = params.get("colorConcept");
+  const pendingPOFromURL = params.get("pendingPo") === "true";
 
   const [themeName, setThemeName] = useState("dark");
   const t = THEMES[themeName];
@@ -201,6 +202,12 @@ export default function App() {
       return [];
     }
   });
+
+  useEffect(() => {
+    if (!pendingPOFromURL) return;
+    setShowSidebar(true);
+    setActiveSearchMode("po");
+  }, [pendingPOFromURL]);
   useEffect(() => {
     localStorage.setItem("catalog-cart", JSON.stringify(cartItems));
   }, [cartItems]);
@@ -818,6 +825,7 @@ const applyListToState = (tab, list) => {
   //-------------------------------------------------------------
   useEffect(() => {
   if (colorConceptFromURL) return;
+  if (isLookbook) return;
 
   // wait until both APIs are loaded
   if (!seasonInitDone || !appsgmsInitDone) return;
@@ -844,6 +852,7 @@ const applyListToState = (tab, list) => {
 
 }, [
   colorConceptFromURL,
+  isLookbook,
   seasonInitDone,
   appsgmsInitDone,
   appsgms,

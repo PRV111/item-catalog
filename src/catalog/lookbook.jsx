@@ -15,6 +15,35 @@ const IMG_FOLDER = {
   "NON APPS": "itemimagesGM",
 };
 
+// The common barcode table (MV_ICODEIMAGE) holds both GRC and PO barcodes together.
+// "All" reads it unfiltered; "GRC" and "PO Pending" each hit a backend endpoint that
+// applies the pending-PO exclusion/inclusion in SQL (see ReactImageController.cs).
+const STOCK_VIEW_OPTIONS = [
+  { key: "all",       label: "All" },
+  { key: "grc",       label: "GRC" },
+  { key: "pendingpo", label: "PO Pending" },
+];
+
+const STOCK_VIEW_ENDPOINT = {
+  all:       "GetItemBasicInfoLookbook",
+  grc:       "GetGRCItemBasicInfoLookbook",
+  pendingpo: "GetPPOItemBasicInfoLookbook",
+};
+
+// INVITEM_UDFSTRING06 on the item — "all" sends no filter, "table"/"nontable" map to the
+// backend's tabletype param (TABLE / NON_TABLE). Mirrors the T/NT badge shown on each card.
+const TABLE_FILTER_OPTIONS = [
+  { key: "all",      label: "All" },
+  { key: "table",    label: "Table" },
+  { key: "nontable", label: "Non Table" },
+];
+
+const TABLE_FILTER_PARAM = {
+  all:      "",
+  table:    "TABLE",
+  nontable: "NON_TABLE",
+};
+
 const normaliseList = (data) => {
   if (!data) return [];
   if (Array.isArray(data)) {
@@ -31,11 +60,13 @@ const normaliseList = (data) => {
 };
 
 // ─── LBImage ─────────────────────────────────────────────────────────────────
-function LBImage({ imageUrl, itemId, rsp, lastInRate, sellThru, t,
-  onClick, onViewItems,colorConcept, imgFolder }) {
-  // Images are only ever stored on the server with a numbered suffix (_1, _2, ...) —
-  // the bare filename in imageUrl is a DB key, not an actual file, so start probing at 1.
-  const [index, setIndex] = useState(1);
+function LBImage({ imageUrl, itemId, rsp, lastInRate, sellThru, orderRate, lookPendingQty, pendingPO, t,
+  onClick, onViewItems,colorConcept, ordNo, tableFlag, imgFolder }) {
+  // Images may be stored on the server either with a numbered suffix (_1, _2, ...)
+  // or as the bare filename — probe _1 through _5, then fall back to the bare name.
+  // PO-pending items are uploaded under a "_PO" suffix instead (barcode_PO.jpg,
+  // barcode_PO_1.jpg, ...) since GRC and PO images for the same barcode can differ.
+  const [index, setIndex] = useState(1); // 1..5 = numbered, 0 = bare filename, -1 = give up
 
   const basePath = imageUrl
     ?.replace(/^\/?(itemimages|itemimagesGM)\//, "")
@@ -43,26 +74,90 @@ function LBImage({ imageUrl, itemId, rsp, lastInRate, sellThru, t,
     ?.replace(/\.\w+$/, "")
     || "";
 
-  const src = imageUrl
-    ? `${IMAGE_BASE}/${imgFolder}/${basePath}_${index}.jpg`
-    : `${IMAGE_BASE}/${imgFolder}/NoImage.jpg`;
+  const suffix = pendingPO ? "_PO" : "";
+
+  const src = !imageUrl || index === -1
+    ? `${IMAGE_BASE}/${imgFolder}/NoImage.jpg`
+    : index === 0
+      ? `${IMAGE_BASE}/${imgFolder}/${basePath}${suffix}.jpg`
+      : `${IMAGE_BASE}/${imgFolder}/${basePath}${suffix}_${index}.jpg`;
+  // INVITEM_UDFSTRING06 holds "TABLE" or "NON_TABLE" — condensed to a T/NT badge.
+  const tableLabel = String(tableFlag ?? "NON_TABLE").trim().toUpperCase().includes("NON") ? "NT" : "T";
+  // pendingPO tells us which barcode row backed this item's image — GRC stock vs a pending PO.
+  const imageSourceLabel = pendingPO ? "P" : "G";
+
   const hasRsp = rsp != null && rsp !== "";
   const hasLastInRate = lastInRate != null && lastInRate !== "";
+  const rateLabel = pendingPO ? "OR" : "LIR";
+  const isOrderRateBlank = orderRate == null || orderRate === "";
+  // pendingPO is per-item (item.IsPendingPO from the backend) — when this specific item is a
+  // pending-PO item, always show the badge, "NA" when the order rate is blank.
+  const hasRate = pendingPO ? true : hasLastInRate;
+
   const parsedSellThru = Number(sellThru);
   const hasSellThru = sellThru != null && sellThru !== "" && Number.isFinite(parsedSellThru);
+  // lookPendingQty is always a backend-computed sum (defaults to 0, never null) so it never
+  // needs an NA fallback.
+  const hasQtyMetric = pendingPO ? true : hasSellThru;
 
   return (
     <div
-      onClick={() => onClick && onClick(itemId, basePath)}
+      onClick={() => onClick && onClick(itemId, basePath, pendingPO)}
       style={{ cursor: "pointer", display: "flex", flexDirection: "column" }}
     >
       <div style={{ width: "100%", height: 300, overflow: "hidden", borderRadius: 8, position: "relative" }}>
         <img
           src={src}
-          onError={() => { if (index < 5) setIndex(i => i + 1); }}
+          onError={() => {
+            setIndex(i => {
+              if (i >= 1 && i < 5) return i + 1;
+              if (i === 5) return 0;
+              return -1;
+            });
+          }}
           style={{ width: "100%", height: "100%", objectFit: "cover" }}
         />
-        {(hasRsp || hasLastInRate) && (
+        <div style={{
+          position: "absolute",
+          top: 10,
+          left: 10,
+          padding: "3px 9px",
+          borderRadius: 999,
+          background: t.bgAlt,
+          backdropFilter: "blur(10px)",
+          WebkitBackdropFilter: "blur(10px)",
+          border: `1px solid ${t.accentBorder}`,
+          boxShadow: `0 6px 18px rgba(0,0,0,0.35)`,
+          fontSize: 10,
+          fontWeight: 800,
+          letterSpacing: "0.4px",
+          color: t.accent,
+          pointerEvents: "none",
+        }}>
+          {tableLabel}
+        </div>
+        <div style={{
+          position: "absolute",
+          top: 10,
+          right: 10,
+          padding: "3px 9px",
+          borderRadius: 999,
+          background: pendingPO ? "rgba(230,126,34,0.85)" : "rgba(39,174,96,0.85)",
+          backdropFilter: "blur(10px)",
+          WebkitBackdropFilter: "blur(10px)",
+          border: `1px solid ${t.accentBorder}`,
+          boxShadow: `0 6px 18px rgba(0,0,0,0.35)`,
+          fontSize: 10,
+          fontWeight: 800,
+          letterSpacing: "0.4px",
+          color: "#fff",
+          pointerEvents: "none",
+        }}
+          title={pendingPO ? "PO image" : "GRC image"}
+        >
+          {imageSourceLabel}
+        </div>
+        {(hasRsp || hasRate) && (
   <div style={{
     position: "absolute",
     bottom: 10,
@@ -96,17 +191,19 @@ function LBImage({ imageUrl, itemId, rsp, lastInRate, sellThru, t,
     <span style={{ fontSize: 11, opacity: 0.8 }}>₹</span>
 
     {hasRsp && <span>{Number(rsp).toLocaleString("en-IN")}</span>}
-    {hasLastInRate && (
+    {hasRate && (
       <>
         {hasRsp && <span style={{ opacity: 0.4 }}>|</span>}
-        <span style={{ fontSize: 11, opacity: 0.8 }}>LIR</span>
-        <span>₹ {Number(lastInRate).toLocaleString("en-IN")}</span>
+        <span style={{ fontSize: 11, opacity: 0.8 }}>{rateLabel}</span>
+        <span>{pendingPO
+          ? (isOrderRateBlank ? "NA" : `₹ ${Number(orderRate).toLocaleString("en-IN")}`)
+          : `₹ ${Number(lastInRate).toLocaleString("en-IN")}`}</span>
       </>
     )}
 
   </div>
 )}
-        {hasSellThru && (
+        {hasQtyMetric && (
   <div style={{
     position: "absolute",
     bottom: 10,
@@ -135,11 +232,28 @@ function LBImage({ imageUrl, itemId, rsp, lastInRate, sellThru, t,
     pointerEvents: "none",
     transition: "all 0.2s ease"
   }}>
-    <span style={{ fontSize: 11, opacity: 0.8 }}>ST</span>
-    <span>{parsedSellThru.toFixed(1)}%</span>
+    {pendingPO ? (
+      <>
+        <span style={{ fontSize: 11, opacity: 0.8 }}>OQ</span>
+        <span>{Number(lookPendingQty ?? 0).toLocaleString("en-IN")}</span>
+      </>
+    ) : (
+      <>
+        <span style={{ fontSize: 11, opacity: 0.8 }}>ST</span>
+        <span>{parsedSellThru.toFixed(1)}%</span>
+      </>
+    )}
   </div>
 )}
       </div>
+      {ordNo && (
+        <div style={{
+          marginTop: 8, fontSize: 10, fontWeight: 700,
+          textAlign: "center", color: t.accent, letterSpacing: "0.4px",
+        }}>
+          PO: {ordNo}
+        </div>
+      )}
       <div style={{
         marginTop: 10, minHeight: 80, fontSize: 11, fontWeight: 600,
         textAlign: "center", color: t.textMuted, textTransform: "uppercase",
@@ -178,6 +292,19 @@ function LBImage({ imageUrl, itemId, rsp, lastInRate, sellThru, t,
 
 // ─── MrpGroup ─────────────────────────────────────────────────────────────────
 function MrpGroup({ mrp, items, t, onImageClick,onViewItems, imgFolder, sectionRef }) {
+  // Sub-group this MRP band's items by Cat2 — order of first appearance, not alphabetical,
+  // so it stays stable relative to how the backend already ordered items within the band.
+  const cat2Groups = [];
+  const cat2Index = new Map();
+  items.forEach(item => {
+    const cat2 = item.Cat2 || item.CAT2 || "OTHERS";
+    if (!cat2Index.has(cat2)) {
+      cat2Index.set(cat2, cat2Groups.length);
+      cat2Groups.push({ cat2, items: [] });
+    }
+    cat2Groups[cat2Index.get(cat2)].items.push(item);
+  });
+
   return (
     <div ref={sectionRef} style={{ marginBottom: 48 }}>
       <div style={{
@@ -200,27 +327,52 @@ function MrpGroup({ mrp, items, t, onImageClick,onViewItems, imgFolder, sectionR
           MRP BAND
         </div>
       </div>
-      <div style={{
-        display: "grid",
-        gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))",
-        gap: 14,
-      }}>
-        {items.map(item => (
-          <LBImage
-            key={item.ItemCode}
-            imageUrl={item.ImageUrl}
-            itemId={item.ItemCode}
-            t={t}
-            onClick={onImageClick}
-            onViewItems={onViewItems}   // ✅ ADD THIS
-            rsp={item.RSP}
-            lastInRate={item.LastInRate ?? item.lastInRate ?? item.lastinrate ?? item.LASTINRATE}
-            sellThru={item.sellThru ?? item.SellThru ?? item.SELLTHRU}
-            colorConcept={item.ColorConcept || item.COLORCONCEPT}
-            imgFolder={imgFolder}
-          />
-        ))}
-      </div>
+
+      {cat2Groups.map(({ cat2, items: cat2Items }) => (
+        <div key={cat2} style={{ marginBottom: 22 }}>
+          <div style={{
+            display: "flex", alignItems: "center", gap: 10,
+            margin: "0 0 12px",
+          }}>
+            <div style={{
+              fontSize: 11, fontWeight: 800, color: t.textSub,
+              textTransform: "uppercase", letterSpacing: "0.6px",
+            }}>
+              {cat2}
+            </div>
+            <div style={{ fontSize: 10, color: t.textFaint }}>
+              {cat2Items.length} style{cat2Items.length > 1 ? "s" : ""}
+            </div>
+            <div style={{ flex: 1, height: 1, background: t.borderFaint }} />
+          </div>
+          <div style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))",
+            gap: 14,
+          }}>
+            {cat2Items.map(item => (
+              <LBImage
+                key={item.ItemCode}
+                imageUrl={item.ImageUrl}
+                itemId={item.ItemCode}
+                t={t}
+                onClick={onImageClick}
+                onViewItems={onViewItems}   // ✅ ADD THIS
+                rsp={item.RSP}
+                lastInRate={item.LastInRate ?? item.lastInRate ?? item.lastinrate ?? item.LASTINRATE}
+                sellThru={item.sellThru ?? item.SellThru ?? item.SELLTHRU}
+                orderRate={item.OrdRate ?? item.OrderRate ?? item.ordRate ?? item.ORDRATE}
+                lookPendingQty={item.LookPendingQty ?? item.lookPendingQty ?? item.LOOKPENDINGQTY}
+                pendingPO={item.IsPendingPO ?? item.isPendingPO ?? item.ISPENDINGPO ?? false}
+                colorConcept={item.ColorConcept || item.COLORCONCEPT}
+                ordNo={item.OrdNo ?? item.ORDNO}
+                tableFlag={item.INVITEM_UDFSTRING06 ?? item.invitem_UDFSTRING06}
+                imgFolder={imgFolder}
+              />
+            ))}
+          </div>
+        </div>
+      ))}
     </div>
   );
 }
@@ -256,6 +408,84 @@ function AppsSwitch({ value, onChange, t }) {
             }}
           >
             {opt}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+// ─── StockViewSwitch (All / GRC / PO Pending) ─────────────────────────────────
+function StockViewSwitch({ value, onChange, t }) {
+  return (
+    <div style={{
+      display: "flex", alignItems: "center",
+      background: t.inputBg,
+      border: `1px solid ${t.border}`,
+      borderRadius: 10,
+      padding: 3,
+      gap: 2,
+    }}>
+      {STOCK_VIEW_OPTIONS.map(opt => {
+        const active = value === opt.key;
+        return (
+          <button
+            key={opt.key}
+            onClick={() => !active && onChange(opt.key)}
+            style={{
+              padding: "4px 12px",
+              borderRadius: 7,
+              border: "none",
+              fontWeight: 700,
+              fontSize: 11,
+              letterSpacing: "0.3px",
+              whiteSpace: "nowrap",
+              cursor: active ? "default" : "pointer",
+              transition: "all 0.18s",
+              background: active ? t.accent : "transparent",
+              color: active ? (t.accentText || "#fff") : t.textMuted,
+            }}
+          >
+            {opt.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+// ─── TableFilterSwitch (All / Table / Non Table) ──────────────────────────────
+function TableFilterSwitch({ value, onChange, t }) {
+  return (
+    <div style={{
+      display: "flex", alignItems: "center",
+      background: t.inputBg,
+      border: `1px solid ${t.border}`,
+      borderRadius: 10,
+      padding: 3,
+      gap: 2,
+    }}>
+      {TABLE_FILTER_OPTIONS.map(opt => {
+        const active = value === opt.key;
+        return (
+          <button
+            key={opt.key}
+            onClick={() => !active && onChange(opt.key)}
+            style={{
+              padding: "4px 12px",
+              borderRadius: 7,
+              border: "none",
+              fontWeight: 700,
+              fontSize: 11,
+              letterSpacing: "0.3px",
+              whiteSpace: "nowrap",
+              cursor: active ? "default" : "pointer",
+              transition: "all 0.18s",
+              background: active ? t.accent : "transparent",
+              color: active ? (t.accentText || "#fff") : t.textMuted,
+            }}
+          >
+            {opt.label}
           </button>
         );
       })}
@@ -412,6 +642,12 @@ export default function LookBook({ themeKey = "dark", onClose }) {
 
   const [brandList] = useState([]);
   const [brands]    = useState([]);
+  const [cat3, setCat3] = useState([]);
+  const [cat3List, setCat3List] = useState([]);
+  const [cat5, setCat5] = useState([]);
+  const [cat5List, setCat5List] = useState([]);
+  const [desc1, setDesc1] = useState([]);
+  const [desc1List, setDesc1List] = useState([]);
   const [desc6, setDesc6] = useState([]);
   const [desc6List, setDesc6List] = useState([]);
   const [catLoading, setCatLoading] = useState(false);
@@ -422,7 +658,18 @@ export default function LookBook({ themeKey = "dark", onClose }) {
   const rspFromRef = useRef("");
   const rspToRef   = useRef("");
 
+  const cat3Ref     = useRef([]);
+  const cat5Ref     = useRef([]);
+  const desc1Ref    = useRef([]);
   const desc6Ref    = useRef([]);
+
+  // "all" | "grc" | "pendingpo" — which slice of the common barcode table to show.
+  const [stockView, setStockView] = useState("all");
+  const stockViewRef = useRef("all");
+
+  // "all" | "table" | "nontable" — filters on INVITEM_UDFSTRING06.
+  const [tableFilter, setTableFilter] = useState("all");
+  const tableFilterRef = useRef("all");
 
 
   //-------------------------------------------------
@@ -452,7 +699,12 @@ export default function LookBook({ themeKey = "dark", onClose }) {
   useEffect(() => { appsgmsRef.current     = appsgms;     }, [appsgms]);
   useEffect(() => { rspFromRef.current     = rspFrom;     }, [rspFrom]);
   useEffect(() => { rspToRef.current       = rspTo;       }, [rspTo]);
+  useEffect(() => { cat3Ref.current        = cat3;        }, [cat3]);
+  useEffect(() => { cat5Ref.current        = cat5;        }, [cat5]);
+  useEffect(() => { desc1Ref.current       = desc1;       }, [desc1]);
   useEffect(() => { desc6Ref.current       = desc6;       }, [desc6]);
+  useEffect(() => { stockViewRef.current   = stockView;   }, [stockView]);
+  useEffect(() => { tableFilterRef.current  = tableFilter;  }, [tableFilter]);
 
   useLayoutEffect(() => {
     if (scrollRef.current && savedScrollRef.current > 0) {
@@ -461,12 +713,13 @@ export default function LookBook({ themeKey = "dark", onClose }) {
     }
   }, [groups]);
 
-  const openGallery = (itemId, basePath) => {
+  const openGallery = (itemId, basePath, pendingPO) => {
     const folder = IMG_FOLDER[appsgmsRef.current] ?? "itemimages";
-    const images = Array.from(
-      { length: 5 },
-      (_, i) => `${IMAGE_BASE}/${folder}/${basePath}_${i + 1}.jpg`
-    );
+    const suffix = pendingPO ? "_PO" : "";
+    const images = [
+      ...Array.from({ length: 5 }, (_, i) => `${IMAGE_BASE}/${folder}/${basePath}${suffix}_${i + 1}.jpg`),
+      `${IMAGE_BASE}/${folder}/${basePath}${suffix}.jpg`, // fallback for images stored without a numbered suffix
+    ];
     setGallery({ itemId, images });
   };
 
@@ -492,9 +745,14 @@ export default function LookBook({ themeKey = "dark", onClose }) {
       const rspMax = filters?.rspTo       ?? rspToRef.current ?? "";
       const safeRspMin = rspMin === "" ? 0 : rspMin;
       const safeRspMax = rspMax === "" ? 999999 : rspMax;
+      const cat3       = filters?.cat3    ?? cat3Ref.current;
+      const cat5       = filters?.cat5    ?? cat5Ref.current;
+      const desc1      = filters?.desc1   ?? desc1Ref.current;
       const desc6      = filters?.desc6   ?? desc6Ref.current;
+      const tabletype  = TABLE_FILTER_PARAM[filters?.tableFilter ?? tableFilterRef.current] ?? "";
+      const endpoint   = STOCK_VIEW_ENDPOINT[stockViewRef.current] || STOCK_VIEW_ENDPOINT.all;
 
-      const url = `${API_BASE}/GetItemBasicInfoLookbook`
+      const url = `${API_BASE}/${endpoint}`
         + `?division=${d.join(",")}`
         + `&section=${s.join(",")}`
         + `&department=${dep.join(",")}`
@@ -506,7 +764,11 @@ export default function LookBook({ themeKey = "dark", onClose }) {
         + `&MRPsortType=ASC`
         + `&appstype=${apiApp}`
         + `&rspfrom=${safeRspMin}&rspto=${safeRspMax}`
-        + `&desc6=${desc6.join(",")}`;
+        + `&cat3=${encodeURIComponent(cat3.join(","))}`
+        + `&cat5=${encodeURIComponent(cat5.join(","))}`
+        + `&desc1=${encodeURIComponent(desc1.join(","))}`
+        + `&desc6=${desc6.join(",")}`
+        + `&tabletype=${tabletype}`;
 
       const res   = await fetch(url);
       const data  = await res.json();
@@ -561,18 +823,27 @@ export default function LookBook({ themeKey = "dark", onClose }) {
     setSections([]);
     setDepartments([]);
     setArticleName("");
+    setCat3([]);
+    setCat5([]);
+    setDesc1([]);
     setDesc6([]);
     divisionsRef.current   = [];
     seasonsRef.current     = [];
     sectionsRef.current    = [];
     departmentsRef.current = [];
     articleNameRef.current = "";
+    cat3Ref.current        = [];
+    cat5Ref.current        = [];
+    desc1Ref.current       = [];
     desc6Ref.current       = [];
     setDivisionList([]);
     setSeasonsList([]);
     setSectionsList([]);
     setDepartmentsList([]);
     setArticleNameList([]);
+    setCat3List([]);
+    setCat5List([]);
+    setDesc1List([]);
     setDesc6List([]);
     fetchItems({
       divisions: [],
@@ -580,6 +851,9 @@ export default function LookBook({ themeKey = "dark", onClose }) {
       sections: [],
       departments: [],
       articleName: "",
+      cat3: [],
+      cat5: [],
+      desc1: [],
       desc6: [],
       appsgms: newApp,
       rspFrom: rspFromRef.current,
@@ -591,6 +865,55 @@ export default function LookBook({ themeKey = "dark", onClose }) {
     appsgmsRef.current = newApp;
     setAppsgms(newApp);
     doFullReset(newApp);
+  };
+
+  const setStockViewAndReload = (nextView) => {
+    if (nextView === stockViewRef.current) return;
+    stockViewRef.current = nextView;
+    setStockView(nextView);
+
+    lastMRPRef.current      = 0;
+    lastItemCodeRef.current = "";
+    savedScrollRef.current  = 0;
+    if (scrollRef.current) scrollRef.current.scrollTop = 0;
+    setGroups([]);
+
+    fetchItems({
+      divisions:   divisionsRef.current,
+      seasons:     seasonsRef.current,
+      sections:    sectionsRef.current,
+      departments: departmentsRef.current,
+      articleName: articleNameRef.current,
+      appsgms:     appsgmsRef.current,
+      rspFrom:     rspFromRef.current,
+      rspTo:       rspToRef.current,
+      desc6:       desc6Ref.current,
+    }, false);
+  };
+
+  const setTableFilterAndReload = (nextFilter) => {
+    if (nextFilter === tableFilterRef.current) return;
+    tableFilterRef.current = nextFilter;
+    setTableFilter(nextFilter);
+
+    lastMRPRef.current      = 0;
+    lastItemCodeRef.current = "";
+    savedScrollRef.current  = 0;
+    if (scrollRef.current) scrollRef.current.scrollTop = 0;
+    setGroups([]);
+
+    fetchItems({
+      divisions:   divisionsRef.current,
+      seasons:     seasonsRef.current,
+      sections:    sectionsRef.current,
+      departments: departmentsRef.current,
+      articleName: articleNameRef.current,
+      appsgms:     appsgmsRef.current,
+      rspFrom:     rspFromRef.current,
+      rspTo:       rspToRef.current,
+      desc6:       desc6Ref.current,
+      tableFilter: nextFilter,
+    }, false);
   };
 
   useEffect(() => {
@@ -650,6 +973,9 @@ export default function LookBook({ themeKey = "dark", onClose }) {
       season: "GetSeasonHO",
       department: "GetDepartment",
       articlename: "GetArticleName",
+      cat3: "GetCat3",
+      cat5: "GetCat5",
+      desc1: "GetDesc1",
       desc6: "GetDesc6",
     };
     if (d.length) params.append("division", d.join(","));
@@ -668,6 +994,9 @@ export default function LookBook({ themeKey = "dark", onClose }) {
       if (tab === "section") setSectionsList(data);
       if (tab === "department") setDepartmentsList(data);
       if (tab === "articlename") setArticleNameList(data);
+      if (tab === "cat3") setCat3List(data);
+      if (tab === "cat5") setCat5List(data);
+      if (tab === "desc1") setDesc1List(data);
       if (tab === "desc6") setDesc6List(data);
     } finally {
       setCatLoading(false);
@@ -715,7 +1044,8 @@ export default function LookBook({ themeKey = "dark", onClose }) {
   };
 
   // count active filters for badge
-  const activeFilterCount = divisions.length + seasons.length + sections.length + departments.length + (articleName ? 1 : 0);
+  const activeFilterCount = divisions.length + seasons.length + sections.length + departments.length + (articleName ? 1 : 0)
+    + cat3.length + cat5.length + desc1.length + desc6.length;
   const activeFilterChips = [
     ...seasons.map(value => ({ key: `season-${value}`, label: "Season", value })),
     ...divisions.map(value => ({ key: `division-${value}`, label: "Division", value })),
@@ -724,6 +1054,9 @@ export default function LookBook({ themeKey = "dark", onClose }) {
     ...(articleName ? [{ key: `article-${articleName}`, label: "Article", value: articleName }] : []),
     ...(rspFrom ? [{ key: `rspfrom-${rspFrom}`, label: "Min", value: rspFrom }] : []),
     ...(rspTo ? [{ key: `rspto-${rspTo}`, label: "Max", value: rspTo }] : []),
+    ...cat3.map(value => ({ key: `cat3-${value}`, label: "Cat 3", value })),
+    ...cat5.map(value => ({ key: `cat5-${value}`, label: "Cat 5", value })),
+    ...desc1.map(value => ({ key: `desc1-${value}`, label: "Desc 1", value })),
     ...desc6.map(value => ({ key: `desc6-${value}`, label: "Desc 6", value })),
   ];
 
@@ -770,9 +1103,10 @@ export default function LookBook({ themeKey = "dark", onClose }) {
           activeCount={activeFilterCount}
           t={t}
         />
+        <StockViewSwitch value={stockView} onChange={setStockViewAndReload} t={t} />
+        <TableFilterSwitch value={tableFilter} onChange={setTableFilterAndReload} t={t} />
 
-        {/* 🎤 ADD HERE */}
-{/* 🎤 Voice Search */}
+        {/* Voice Search */}
 <button
   onClick={() => {
     if (voiceListening) {
@@ -918,7 +1252,7 @@ export default function LookBook({ themeKey = "dark", onClose }) {
         <div style={{ fontSize: 11, color: t.textMuted }}>
           {loading && groups.length === 0
             ? "Loading…"
-            : `${totalItems} items · ${groups.length} MRP bands · ${appsgms}`}
+            : `${totalItems} items · ${groups.length} MRP bands · ${appsgms}${stockView !== "all" ? ` · ${STOCK_VIEW_OPTIONS.find(o => o.key === stockView)?.label}` : ""}${tableFilter !== "all" ? ` · ${TABLE_FILTER_OPTIONS.find(o => o.key === tableFilter)?.label}` : ""}`}
         </div>
 
         {voiceError && (
@@ -1124,7 +1458,7 @@ export default function LookBook({ themeKey = "dark", onClose }) {
               style={{ width: 320, height: "100%", background: t.bgAlt }}
             >
               <FilterPanel
-                visibleTabs={["season","division",  "section", "department", "articlename", "desc6"]}
+                visibleTabs={["season","division",  "section", "department", "articlename", "cat3", "cat5", "desc1", "desc6"]}
                 rspFrom={rspFrom}
                 rspTo={rspTo}
                 setRspFrom={setRspFrom}
@@ -1141,6 +1475,12 @@ export default function LookBook({ themeKey = "dark", onClose }) {
                 articleName={articleName}
                 brandList={brandList}
                 brands={brands}
+                cat3List={cat3List}
+                cat3={cat3}
+                cat5List={cat5List}
+                cat5={cat5}
+                desc1List={desc1List}
+                desc1={desc1}
                 desc6List={desc6List}
                 desc6={desc6}
                 catLoading={catLoading}
@@ -1158,6 +1498,9 @@ export default function LookBook({ themeKey = "dark", onClose }) {
                   setSections(f.sections);
                   setDepartments(f.departments);
                   setArticleName(f.articleName || "");
+                  setCat3(f.cat3 || []);
+                  setCat5(f.cat5 || []);
+                  setDesc1(f.desc1 || []);
                   setDesc6(f.desc6 || []);
                   rspFromRef.current     = f.rspFrom || "";
                   rspToRef.current       = f.rspTo || "";
@@ -1166,6 +1509,9 @@ export default function LookBook({ themeKey = "dark", onClose }) {
                   sectionsRef.current    = f.sections;
                   departmentsRef.current = f.departments;
                   articleNameRef.current = f.articleName || "";
+                  cat3Ref.current        = f.cat3 || [];
+                  cat5Ref.current        = f.cat5 || [];
+                  desc1Ref.current       = f.desc1 || [];
                   desc6Ref.current       = f.desc6 || [];
                   fetchItems({ ...f, appsgms: appsgmsRef.current }, false);
                   setShowFilter(false);

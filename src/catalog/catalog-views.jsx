@@ -238,9 +238,9 @@ export function ItemCard({ item,metrics, idx, onAsk, onExpand, onAddToCart, cart
      
      
      {/* ── Image carousel ── */}
-      <Carousel item={item} height={220} fit="cover" 
-      showDots={true} showArrows={true} showCounter={true} 
-      showExpand={true} onExpand={()=>onExpand(item)} zoomEnabled={zoomEnabled} t={t}/>
+      <Carousel item={item} height={220} fit="cover"
+      showDots={true} showArrows={true} showCounter={true}
+      showExpand={true} onExpand={()=>onExpand(item)} zoomEnabled={zoomEnabled} tableBadge={item.category} t={t}/>
      
      <div style={
       { background: "rgba(0,0,0,0.15)", 
