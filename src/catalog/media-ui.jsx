@@ -538,12 +538,14 @@ export function Carousel({ item, height, fit="cover", showThumbs=false, showDots
   const ext = path.split(".").pop()||"jpg";
 
   // Images may be stored on the server either with a numbered suffix (_1, _2, ...)
-  // or as the bare filename — probe _1 through _5, then fall back to the bare name,
-  // same convention as LBImage in lookbook.jsx.
+  // or as the bare filename — probe _1 through _5, then the bare name. Only if none of
+  // those exist do we fall back to the "_PO" variant (uploaded separately for pending-PO
+  // stock), so a GRC/numbered image always wins over a PO one when both exist.
   const candidates = base
     ? [
         ...Array.from({length:5},(_,i)=>`${IMAGE_BASE}/${folder}/${base}_${i+1}.${ext}`),
         `${IMAGE_BASE}/${folder}/${base}.${ext}`,
+        `${IMAGE_BASE}/${folder}/${base}_PO.${ext}`,
       ]
     : [];
   
