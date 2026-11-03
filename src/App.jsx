@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { IMAGE_BASE, PAGE_SIZE, THEMES } from "./catalog/constants";
 import { apiGet, apiPost } from "./catalog/api";
-import { useDebouncedValue } from "./catalog/hooks";
-import { FilterGroup, LoadingDots, SortToggle, ThemePicker } from "./catalog/basic-ui";
+import { useDebouncedValue, useErrorToast } from "./catalog/hooks";
+import { ErrorToast, FilterGroup, LoadingDots, SortToggle, ThemePicker } from "./catalog/basic-ui";
 import { FilterPanel, SingleImage } from "./catalog/media-ui";
 import { ImageModal, ItemCard, ListRow } from "./catalog/catalog-views";
 import LookBook from "./catalog/lookbook";
@@ -186,6 +186,7 @@ export default function App() {
   const [voiceSearchSupported, setVoiceSearchSupported] = useState(false);
   const [voiceListening, setVoiceListening] = useState(false);
   const [voiceError, setVoiceError] = useState("");
+  const apiError = useErrorToast();
   const [showCart, setShowCart] = useState(false);
   const [cartNotice, setCartNotice] = useState("");
   const [cartItems, setCartItems] = useState(() => {
@@ -369,20 +370,20 @@ const callPOSearchAPI = async (poNumber, pageNum = 1, reset = false) => {
     const div = divisions.join(","), sec = sections.join(","), dep = departments.join(",");
     let url = "GetBrands";
     if (div || sec || dep) url += `?division=${encodeURIComponent(div)}&section=${encodeURIComponent(sec)}&department=${encodeURIComponent(dep)}`;
-    apiGet(url).then((data) => setBrandList(data || [])).catch(console.error);
+    apiGet(url).then((data) => setBrandList(data || [])).catch(apiError.report);
   }, [divisions, sections, departments]);
 
   useEffect(() => {
     apiGet("GetSeasonHO")
       .then((list) => { setSeasonsList(list); if (list.length > 0) setSeasons([list[0]]); })
-      .catch(console.error)
+      .catch(apiError.report)
       .finally(() => setSeasonInitDone(true));
   }, []);
 
   useEffect(() => {
     apiGet("GetAppsGM")
       .then((list) => { setAppsgmsList(list); const apparel = list.find((value) => value.toLowerCase().includes("apparel")); if (apparel) setAppsgms([apparel]); })
-      .catch(console.error)
+      .catch(apiError.report)
       .finally(() => setAppsgmsInitDone(true));
   }, []);
 
@@ -407,7 +408,7 @@ const callPOSearchAPI = async (poNumber, pageNum = 1, reset = false) => {
 
   apiGet(`GetDivision?divisiontype=${encodeURIComponent(appsgms.join(","))}`)
     .then((data) => setDivisionList(normaliseCatList(data))) // ✅ correct
-    .catch(console.error); 
+    .catch(apiError.report); 
 
 }, [appsgms]);
 
@@ -545,7 +546,7 @@ const callPOSearchAPI = async (poNumber, pageNum = 1, reset = false) => {
       // loadedTabs.current[tab] = true;
 
     } catch (err) {
-      console.error(err);
+      apiError.report(err);
     }
     setCatLoading(false);
   };
@@ -609,7 +610,7 @@ const applyListToState = (tab, list) => {
       setMetricsMap(prev => ({ ...prev, ...map }));
 
     } catch (err) {
-      console.error("Metrics API error:", err);
+      apiError.report(err);
     }
   }, []);
 
@@ -979,7 +980,7 @@ const handleAISearch = async (query) => {
     setHasMore(true);
 
   } catch (err) {
-    console.error("AI error:", err);
+    apiError.report(err);
     setVoiceError("Voice search could not apply SmartFilter.");
   }
 };
@@ -2118,6 +2119,7 @@ const handleAISearch = async (query) => {
 
 
        
+      <ErrorToast message={apiError.message} onClose={apiError.clear} />
     </div>
   );
 }

@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { IMAGE_BASE, THEMES } from "./constants";
 import { apiGet, apiPost } from "./api";
+import { useErrorToast } from "./hooks";
+import { ErrorToast } from "./basic-ui";
 import { FilterPanel } from "./media-ui";
 
 // ─── constants ───────────────────────────────────────────────────────────────
@@ -607,6 +609,7 @@ export default function LookBook({ themeKey = "dark", onClose }) {
   const [voiceSearchSupported, setVoiceSearchSupported] = useState(false);
   const [voiceListening, setVoiceListening] = useState(false);
   const [voiceError, setVoiceError] = useState("");
+  const apiError = useErrorToast();
   const speechRecognitionRef = useRef(null);
 
 
@@ -805,7 +808,7 @@ export default function LookBook({ themeKey = "dark", onClose }) {
       setHasMore(items.length >= 100);
       setTotalItems(prev => loadMore ? prev + items.length : items.length);
     } catch (err) {
-      console.error(err);
+      apiError.report(err);
     }
     setLoading(false);
   }, []);
@@ -923,13 +926,13 @@ export default function LookBook({ themeKey = "dark", onClose }) {
   useEffect(() => {
     apiGet("GetSeasonHO")
       .then(data => setSeasonsList(normaliseList(data)))
-      .catch(console.error);
+      .catch(apiError.report);
   }, []);
 
   useEffect(() => {
     const apiApp = APPS_API_VALUE[appsgms] ?? appsgms;
     apiGet(`GetDivision?divisiontype=${apiApp}`)
-      .then(setDivisionList).catch(console.error);
+      .then(setDivisionList).catch(apiError.report);
   }, [appsgms]);
 
   useEffect(() => {
@@ -937,7 +940,7 @@ export default function LookBook({ themeKey = "dark", onClose }) {
     const params = new URLSearchParams({ divisiontype: apiApp });
     if (divisions.length) params.append("division", divisions.join(","));
     apiGet(`GetSection?${params}`)
-      .then(data => setSectionsList(normaliseList(data))).catch(console.error);
+      .then(data => setSectionsList(normaliseList(data))).catch(apiError.report);
   }, [divisions, appsgms]);
 
   useEffect(() => {
@@ -946,7 +949,7 @@ export default function LookBook({ themeKey = "dark", onClose }) {
     if (divisions.length) params.append("division", divisions.join(","));
     if (sections.length)  params.append("section",  sections.join(","));
     apiGet(`GetDepartment?${params}`)
-      .then(data => setDepartmentsList(normaliseList(data))).catch(console.error);
+      .then(data => setDepartmentsList(normaliseList(data))).catch(apiError.report);
   }, [divisions, sections, appsgms]);
 
   useEffect(() => {
@@ -957,7 +960,7 @@ export default function LookBook({ themeKey = "dark", onClose }) {
     if (departments.length) params.append("department", departments.join(","));
     apiGet(`GetArticleName?${params}`)
       .then(data => setArticleNameList(normaliseList(data)))
-      .catch(console.error);
+      .catch(apiError.report);
   }, [divisions, sections, departments, appsgms]);
 
   const loadTabData = async (tab, draft = {}) => {
@@ -1171,7 +1174,7 @@ export default function LookBook({ themeKey = "dark", onClose }) {
           }, false);
 
         } catch (err) {
-          console.error(err);
+          apiError.report(err);
           setVoiceError("AI filter failed");
         }
       })();
@@ -1657,6 +1660,7 @@ export default function LookBook({ themeKey = "dark", onClose }) {
 
 
       </div>
+      <ErrorToast message={apiError.message} onClose={apiError.clear} />
     </div>
   );
 }

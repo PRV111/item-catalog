@@ -198,3 +198,13 @@ export function LoadingDots({ t }) {
     </div>
   );
 }
+
+export function ErrorToast({ message, onClose }) {
+  if (!message) return null;
+  return (
+    <div role="alert" style={{position:"fixed",bottom:20,left:"50%",transform:"translateX(-50%)",zIndex:2000,maxWidth:"min(560px,90vw)",display:"flex",alignItems:"center",gap:12,padding:"10px 14px",borderRadius:10,background:"#7f1d1d",border:"1px solid #ef4444",color:"#fff",fontSize:12,boxShadow:"0 6px 24px rgba(0,0,0,0.4)"}}>
+      <span style={{flex:1,wordBreak:"break-word"}}>{message}</span>
+      <button onClick={onClose} aria-label="Dismiss" style={{background:"none",border:"none",color:"#fff",cursor:"pointer",fontSize:16,lineHeight:1}}>×</button>
+    </div>
+  );
+}
