@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { API_BASE, IMAGE_BASE, PAGE_SIZE, THEMES } from "./catalog/constants";
+import { IMAGE_BASE, PAGE_SIZE, THEMES } from "./catalog/constants";
+import { apiGet, apiPost } from "./catalog/api";
 import { useDebouncedValue } from "./catalog/hooks";
 import { FilterGroup, LoadingDots, SortToggle, ThemePicker } from "./catalog/basic-ui";
 import { FilterPanel, SingleImage } from "./catalog/media-ui";
@@ -315,13 +316,10 @@ const callPOSearchAPI = async (poNumber, pageNum = 1, reset = false) => {
   try {
     // GetItemsByPO returns full item details (RSP, division/section/department,
     // categories, image URL) for the PO in a single call — no second lookup needed.
-    const res = await fetch(
-      `${API_BASE}/GetItemsByPO?poNumber=${encodeURIComponent(poNumber)}&pageNumber=${pageNum}&pageSize=${PAGE_SIZE}&appstype=${encodeURIComponent(appsgms.join(","))}`,
+    const data = await apiGet(
+      `GetItemsByPO?poNumber=${encodeURIComponent(poNumber)}&pageNumber=${pageNum}&pageSize=${PAGE_SIZE}&appstype=${encodeURIComponent(appsgms.join(","))}`,
       { signal: controller.signal }
     );
-    if (!res.ok) throw new Error(`PO API error ${res.status}`);
-
-    const data = await res.json();
 
     if (requestId !== fetchRequestIdRef.current) return;
 
@@ -369,23 +367,20 @@ const callPOSearchAPI = async (poNumber, pageNum = 1, reset = false) => {
 
   useEffect(() => {
     const div = divisions.join(","), sec = sections.join(","), dep = departments.join(",");
-    //let url = `${API_BASE}/GetBrands`;
-    let url = `${API_BASE}/GetBrands`;
+    let url = "GetBrands";
     if (div || sec || dep) url += `?division=${encodeURIComponent(div)}&section=${encodeURIComponent(sec)}&department=${encodeURIComponent(dep)}`;
-    fetch(url).then((response) => response.json()).then((data) => setBrandList(data || [])).catch(console.error);
+    apiGet(url).then((data) => setBrandList(data || [])).catch(console.error);
   }, [divisions, sections, departments]);
 
   useEffect(() => {
-    fetch(`${API_BASE}/GetSeasonHO`)
-      .then((response) => response.json())
+    apiGet("GetSeasonHO")
       .then((list) => { setSeasonsList(list); if (list.length > 0) setSeasons([list[0]]); })
       .catch(console.error)
       .finally(() => setSeasonInitDone(true));
   }, []);
 
   useEffect(() => {
-    fetch(`${API_BASE}/GetAppsGM`)
-      .then((response) => response.json())
+    apiGet("GetAppsGM")
       .then((list) => { setAppsgmsList(list); const apparel = list.find((value) => value.toLowerCase().includes("apparel")); if (apparel) setAppsgms([apparel]); })
       .catch(console.error)
       .finally(() => setAppsgmsInitDone(true));
@@ -410,8 +405,7 @@ const callPOSearchAPI = async (poNumber, pageNum = 1, reset = false) => {
           return; 
         } 
 
-  fetch(`${API_BASE}/GetDivision?divisiontype=${encodeURIComponent(appsgms.join(","))}`)
-    .then((response) => response.json())
+  apiGet(`GetDivision?divisiontype=${encodeURIComponent(appsgms.join(","))}`)
     .then((data) => setDivisionList(normaliseCatList(data))) // ✅ correct
     .catch(console.error); 
 
@@ -527,8 +521,7 @@ const callPOSearchAPI = async (poNumber, pageNum = 1, reset = false) => {
       const endpoint = tab === "articlename"
         ? "GetArticleName"
         : `Get${tab.charAt(0).toUpperCase() + tab.slice(1)}`;
-      const response = await fetch(`${API_BASE}/${endpoint}?${params}`);
-      const list = normaliseCatList(await response.json());
+      const list = normaliseCatList(await apiGet(`${endpoint}?${params}`));
 
        // ✅ SAVE CACHE
       filterCacheRef.current[cacheKey] = list;
@@ -586,9 +579,7 @@ const applyListToState = (tab, list) => {
     if (!ids) return;
 
     try {
-      const res = await fetch(`${API_BASE}/GetItemMetrics?ids=${encodeURIComponent(ids)}`);
-
-      const data = await res.json();
+      const data = await apiGet(`GetItemMetrics?ids=${encodeURIComponent(ids)}`);
 
       const list = Array.isArray(data)
         ? data
@@ -637,7 +628,7 @@ const applyListToState = (tab, list) => {
     }
     try {
       const itemInfoEndpoint = bobsArticle ? "GetBOBSItemBasicInfo" : "GetItemBasicInfo";
-      const url = `${API_BASE}/${itemInfoEndpoint}`
+      const url = itemInfoEndpoint
         + `?brand=${encodeURIComponent(brands.join(","))}&maxPrice=99999&division=${encodeURIComponent(divisions.join(","))}&section=${encodeURIComponent(sections.join(","))}&department=${encodeURIComponent(departments.join(","))}`
         + `&pageNumber=${pageNum}&pageSize=${PAGE_SIZE}&selectedfilter=${debouncedGlobalSearch ? "cat1" : "select"}`
         + `&selectedfiltervalue=${encodeURIComponent(debouncedGlobalSearch)}&season=${encodeURIComponent(seasons.join(","))}`
@@ -647,9 +638,7 @@ const applyListToState = (tab, list) => {
         + `&articlename=${encodeURIComponent(debouncedArticleSearch)}&rspfrom=${mrpMin || 0}&rspto=${mrpMax || 99999}`
         + (!bobsArticle ? `&bobsArticle=${bobsArticle}` : "");
 
-      const response = await fetch(url, { signal: controller.signal });
-      if (!response.ok) throw new Error(`API error ${response.status}`);
-      const data = await response.json();
+      const data = await apiGet(url, { signal: controller.signal });
       if (requestId !== fetchRequestIdRef.current) return;
       const rawItems = Array.isArray(data) ? data : (data.Items ?? []);
       const more = Array.isArray(data) ? rawItems.length >= PAGE_SIZE : (data.HasMore ?? rawItems.length >= PAGE_SIZE);
@@ -721,22 +710,18 @@ const applyListToState = (tab, list) => {
 
   try {
     const url = isLookbook
-      ? `${API_BASE}/GetItemBasicInfoLookbook`
+      ? `GetItemBasicInfoLookbook`
         + `?colorConcept=${encodeURIComponent(searchText)}`
         + `&pageNumber=${pageNum}`
         + `&pageSize=50`
-      : `${API_BASE}/GetSearchItems`
+      : `GetSearchItems`
         + `?selectedfilter=${encodeURIComponent(searchMode === "po" ? "po" : "cat1")}`
         + `&selectedfiltervalue=${encodeURIComponent(searchText)}`
         + `&pageNumber=${pageNum}`
         + `&pageSize=${PAGE_SIZE}`
         + `&appstype=${encodeURIComponent(appsgms.join(","))}`;
 
-    const response = await fetch(url, { signal: controller.signal });
-
-    if (!response.ok) throw new Error(`API error ${response.status}`);
-
-    const data = await response.json();
+    const data = await apiGet(url, { signal: controller.signal });
 
     if (requestId !== fetchRequestIdRef.current) return;
 
@@ -919,19 +904,7 @@ const applyListToState = (tab, list) => {
 
 const handleAISearch = async (query) => {
   try {
-    const res = await fetch(`${API_BASE}/SmartFilter`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ query }),
-    });
-
-const text = await res.text();
-
-    if (!res.ok) {
-  throw new Error(text);
-}
+    const text = await apiPost("SmartFilter", { query });
 
     const filters = JSON.parse(text);
 

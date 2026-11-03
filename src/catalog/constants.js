@@ -1,8 +1,6 @@
-export const IMAGE_BASE = "https://10.0.0.49:3001";
+export const IMAGE_BASE = import.meta.env.VITE_IMAGE_BASE;
 export const PAGE_SIZE = 20;
-//export const API_BASE = "https://10.0.0.49:2524/api/reactimage";
-export const API_BASE = "http://10.0.0.49:2523/api/reactimage";
-//export const API_BASE = "http://localhost:7429/api/reactimage";
+export const API_BASE = import.meta.env.VITE_API_BASE;
 
 export const THEMES = {
   dark: {

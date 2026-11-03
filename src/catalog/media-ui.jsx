@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import Drift from "drift-zoom";
 import "drift-zoom/dist/drift-basic.min.css";
-import { API_BASE, IMAGE_BASE } from "./constants";
+import { IMAGE_BASE } from "./constants";
+import { apiGet } from "./api";
 import { CheckList, DRow, Spinner, StatBox } from "./basic-ui";
 
 const DRIFT_ZOOM_FACTOR = 2.5;
@@ -210,8 +211,7 @@ const tabs = visibleTabs
     setDbSearching(true);
     setDbResults(null);
     try {
-      const res = await fetch(`${API_BASE}/${endpointMap[activeTab]}?search=${encodeURIComponent(search.trim())}`);
-      const data = await res.json();
+      const data = await apiGet(`${endpointMap[activeTab]}?search=${encodeURIComponent(search.trim())}`);
       const toFlat = (d) => {
         if (!d) return [];
         if (Array.isArray(d)) {

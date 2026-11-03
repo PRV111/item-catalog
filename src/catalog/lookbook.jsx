@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { API_BASE, IMAGE_BASE, THEMES } from "./constants";
+import { IMAGE_BASE, THEMES } from "./constants";
+import { apiGet, apiPost } from "./api";
 import { FilterPanel } from "./media-ui";
 
 // ─── constants ───────────────────────────────────────────────────────────────
@@ -752,7 +753,7 @@ export default function LookBook({ themeKey = "dark", onClose }) {
       const tabletype  = TABLE_FILTER_PARAM[filters?.tableFilter ?? tableFilterRef.current] ?? "";
       const endpoint   = STOCK_VIEW_ENDPOINT[stockViewRef.current] || STOCK_VIEW_ENDPOINT.all;
 
-      const url = `${API_BASE}/${endpoint}`
+      const url = `${endpoint}`
         + `?division=${d.join(",")}`
         + `&section=${s.join(",")}`
         + `&department=${dep.join(",")}`
@@ -770,8 +771,7 @@ export default function LookBook({ themeKey = "dark", onClose }) {
         + `&desc6=${desc6.join(",")}`
         + `&tabletype=${tabletype}`;
 
-      const res   = await fetch(url);
-      const data  = await res.json();
+      const data  = await apiGet(url);
       const items = data?.Items || [];
 
       if (items.length > 0) {
@@ -921,24 +921,23 @@ export default function LookBook({ themeKey = "dark", onClose }) {
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    fetch(`${API_BASE}/GetSeasonHO`)
-      .then(r => r.json())
+    apiGet("GetSeasonHO")
       .then(data => setSeasonsList(normaliseList(data)))
       .catch(console.error);
   }, []);
 
   useEffect(() => {
     const apiApp = APPS_API_VALUE[appsgms] ?? appsgms;
-    fetch(`${API_BASE}/GetDivision?divisiontype=${apiApp}`)
-      .then(r => r.json()).then(setDivisionList).catch(console.error);
+    apiGet(`GetDivision?divisiontype=${apiApp}`)
+      .then(setDivisionList).catch(console.error);
   }, [appsgms]);
 
   useEffect(() => {
     const apiApp = APPS_API_VALUE[appsgms] ?? appsgms;
     const params = new URLSearchParams({ divisiontype: apiApp });
     if (divisions.length) params.append("division", divisions.join(","));
-    fetch(`${API_BASE}/GetSection?${params}`)
-      .then(r => r.json()).then(data => setSectionsList(normaliseList(data))).catch(console.error);
+    apiGet(`GetSection?${params}`)
+      .then(data => setSectionsList(normaliseList(data))).catch(console.error);
   }, [divisions, appsgms]);
 
   useEffect(() => {
@@ -946,8 +945,8 @@ export default function LookBook({ themeKey = "dark", onClose }) {
     const params = new URLSearchParams({ divisiontype: apiApp });
     if (divisions.length) params.append("division", divisions.join(","));
     if (sections.length)  params.append("section",  sections.join(","));
-    fetch(`${API_BASE}/GetDepartment?${params}`)
-      .then(r => r.json()).then(data => setDepartmentsList(normaliseList(data))).catch(console.error);
+    apiGet(`GetDepartment?${params}`)
+      .then(data => setDepartmentsList(normaliseList(data))).catch(console.error);
   }, [divisions, sections, appsgms]);
 
   useEffect(() => {
@@ -956,8 +955,7 @@ export default function LookBook({ themeKey = "dark", onClose }) {
     if (divisions.length) params.append("division", divisions.join(","));
     if (sections.length) params.append("section", sections.join(","));
     if (departments.length) params.append("department", departments.join(","));
-    fetch(`${API_BASE}/GetArticleName?${params}`)
-      .then(r => r.json())
+    apiGet(`GetArticleName?${params}`)
       .then(data => setArticleNameList(normaliseList(data)))
       .catch(console.error);
   }, [divisions, sections, departments, appsgms]);
@@ -984,12 +982,11 @@ export default function LookBook({ themeKey = "dark", onClose }) {
     const endpoint = endpointMap[tab];
     if (!endpoint) return;
     const url = tab === "season"
-      ? `${API_BASE}/${endpoint}`
-      : `${API_BASE}/${endpoint}?${params}`;
+      ? endpoint
+      : `${endpoint}?${params}`;
     setCatLoading(true);
     try {
-      const res  = await fetch(url);
-      const data = normaliseList(await res.json());
+      const data = normaliseList(await apiGet(url));
       if (tab === "season") setSeasonsList(data);
       if (tab === "section") setSectionsList(data);
       if (tab === "department") setDepartmentsList(data);
@@ -1137,13 +1134,7 @@ export default function LookBook({ themeKey = "dark", onClose }) {
 
       (async () => {
         try {
-          const res = await fetch(`${API_BASE}/SmartFilter`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ query: finalText })
-          });
-          const text = await res.text();
-          if (!res.ok) throw new Error(text);
+          const text = await apiPost("SmartFilter", { query: finalText });
           const filters = JSON.parse(text);
 
           seasonsRef.current     = filters.season     || [];
