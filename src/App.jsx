@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { IMAGE_BASE, PAGE_SIZE, THEMES } from "./catalog/constants";
 import { apiGet, apiPost } from "./catalog/api";
 import { useDebouncedValue, useErrorToast } from "./catalog/hooks";
-import { ErrorToast, FilterGroup, LoadingDots, SortToggle, ThemePicker } from "./catalog/basic-ui";
+import { ArchivePoImagesButton, ErrorToast, FilterGroup, LoadingDots, SortToggle, ThemePicker } from "./catalog/basic-ui";
 import { FilterPanel, SingleImage } from "./catalog/media-ui";
 import { ImageModal, ItemCard, ListRow } from "./catalog/catalog-views";
 import LookBook from "./catalog/lookbook";
@@ -187,27 +187,6 @@ export default function App() {
   const [voiceListening, setVoiceListening] = useState(false);
   const [voiceError, setVoiceError] = useState("");
   const apiError = useErrorToast();
-  const [poCleanupBusy, setPoCleanupBusy] = useState(false);
-
-  const handlePoImageCleanup = async () => {
-    if (poCleanupBusy) return;
-    setPoCleanupBusy(true);
-    try {
-      const preview = await apiGet("PreviewPoImageCleanup");
-      if (!preview.Files) { alert("No _PO_ images found for received barcodes."); return; }
-      if (!window.confirm(`${preview.Barcodes} barcodes (${preview.Files} _PO_ images) exist in invgrcdet.
-Move them to the archive folder?`)) return;
-      const result = JSON.parse(await apiPost("RunPoImageCleanup", {}));
-      alert(`Archived ${result.Moved} images for ${result.Barcodes} barcodes.
-${result.Archive}` + (result.Failed?.length ? `
-
-${result.Failed.length} failed: ${result.Failed[0]}` : ""));
-    } catch (err) {
-      apiError.report(err);
-    } finally {
-      setPoCleanupBusy(false);
-    }
-  };
   const [showCart, setShowCart] = useState(false);
   const [cartNotice, setCartNotice] = useState("");
   const [cartItems, setCartItems] = useState(() => {
@@ -1324,14 +1303,7 @@ const handleAISearch = async (query) => {
               style={{ padding: "6px 12px", background: viewMode === value ? t.accentBg : "transparent", border: `1px solid ${viewMode === value ? t.accentBorder : t.border}`, borderRadius: 8, color: viewMode === value ? t.accent : t.textMuted, fontSize: 11, cursor: "pointer" }}>
                 {value === "grid" ? "⊞" : "☰"} {value}
               </button>)}
-              <button
-                onClick={handlePoImageCleanup}
-                disabled={poCleanupBusy}
-                title="Archive _PO_ images of barcodes already received (in invgrcdet)"
-                style={{ padding: "7px 14px", background: "transparent", border: `1px solid ${t.border}`, borderRadius: 8, color: t.textMuted, fontSize: 11, cursor: poCleanupBusy ? "wait" : "pointer" }}
-              >
-                {poCleanupBusy ? "Working..." : "🗑 PO images"}
-              </button>
+              <ArchivePoImagesButton t={t} onError={apiError.report} />
               <button
                 onClick={handleLogout}
                 style={{

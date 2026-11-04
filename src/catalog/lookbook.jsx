@@ -2,7 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react
 import { IMAGE_BASE, THEMES } from "./constants";
 import { apiGet, apiPost } from "./api";
 import { useErrorToast } from "./hooks";
-import { ErrorToast } from "./basic-ui";
+import { ArchivePoImagesButton, ErrorToast } from "./basic-ui";
 import { FilterPanel } from "./media-ui";
 
 // ─── constants ───────────────────────────────────────────────────────────────
@@ -1253,10 +1253,12 @@ export default function LookBook({ themeKey = "dark", onClose }) {
           <div style={{ fontSize: 11, color: "#ef4444" }}>{voiceError}</div>
         )}
 
+        <ArchivePoImagesButton t={t} onError={apiError.report} style={{ marginLeft: "auto" }} />
+
         <button
           onClick={onClose}
           style={{
-            marginLeft: "auto", padding: "6px 14px", background: t.inputBg,
+            padding: "6px 14px", background: t.inputBg,
             border: `1px solid ${t.border}`, borderRadius: 8,
             color: t.textSub, fontSize: 11, fontWeight: 600, cursor: "pointer",
           }}

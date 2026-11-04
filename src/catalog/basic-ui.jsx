@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { THEMES } from "./constants";
+import { apiGet, apiPost } from "./api";
 
 export function Spinner({ t, label }) {
   return (
@@ -206,5 +207,40 @@ export function ErrorToast({ message, onClose }) {
       <span style={{flex:1,wordBreak:"break-word"}}>{message}</span>
       <button onClick={onClose} aria-label="Dismiss" style={{background:"none",border:"none",color:"#fff",cursor:"pointer",fontSize:16,lineHeight:1}}>×</button>
     </div>
+  );
+}
+
+export function ArchivePoImagesButton({ t, onError, style }) {
+  const [busy, setBusy] = useState(false);
+
+  const run = async () => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      const preview = await apiGet("PreviewPoImageCleanup");
+      if (!preview.Files) { alert("No _PO_ images found for received barcodes."); return; }
+      if (!window.confirm(`${preview.Barcodes} barcodes (${preview.Files} _PO_ images) exist in invgrcdet.
+Move them to the archive folder?`)) return;
+      const result = JSON.parse(await apiPost("RunPoImageCleanup", {}));
+      alert(`Archived ${result.Moved} images for ${result.Barcodes} barcodes.
+${result.Archive}` + (result.Failed?.length ? `
+
+${result.Failed.length} failed: ${result.Failed[0]}` : ""));
+    } catch (err) {
+      onError(err);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <button
+      onClick={run}
+      disabled={busy}
+      title="Move _PO_ images of barcodes already received (in invgrcdet) to the archive folder"
+      style={{ padding: "7px 14px", background: "transparent", border: `1px solid ${t.border}`, borderRadius: 8, color: t.textMuted, fontSize: 11, cursor: busy ? "wait" : "pointer", whiteSpace: "nowrap", flexShrink: 0, ...style }}
+    >
+      {busy ? "Working..." : "🗑 Archive PO Images"}
+    </button>
   );
 }
